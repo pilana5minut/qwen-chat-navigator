@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Qwen Chat Navigator",
+  "version": "1.0.0",
+  "description": "Навигация по сообщениям в чате Qwen",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://chat.qwen.ai/*"
+  ],
+  "action": {
+    "default_title": "Переключить навигационное меню"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.qwen.ai/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
