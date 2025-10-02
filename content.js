@@ -40,6 +40,9 @@
   const DEFAULT_MENU_WIDTH = 340
   const STORAGE_KEY = 'qwen-nav-menu-width'
 
+  // Флаг состояния меню (развернуто/свернуто)
+  let isMenuExpanded = false
+
   // ============================================
   // Ожидание появления контейнера чата
   // ============================================
@@ -171,7 +174,7 @@
     const messages = []
 
     userMessages.forEach((messageElement, index) => {
-      // Получаем ID элемента для якоря
+      // Получаем ID элемента для скора
       let messageId = messageElement.id
 
       // Если ID отсутствует, создаём временный уникальный ID
@@ -447,6 +450,7 @@
     }
 
     resizer.addEventListener('mousedown', startResize)
+    resizer.addEventListener('dblclick', toggleMenuWidth)
 
     console.log('[Qwen Navigator] Изменение размера инициализировано')
   }
@@ -498,6 +502,38 @@
     document.removeEventListener('mouseup', stopResize)
 
     console.log('[Qwen Navigator] Ширина меню сохранена:', currentWidth)
+  }
+
+  // ============================================
+  // Переключение ширины меню (двойной клик)
+  // ============================================
+
+  function toggleMenuWidth(e) {
+    e.preventDefault()
+
+    // Добавляем класс resizing для отключения transitions
+    navigationMenu.classList.add('resizing')
+
+    if (isMenuExpanded) {
+      // Сворачиваем меню до минимальной ширины
+      navigationMenu.style.width = `${MIN_MENU_WIDTH}px`
+      isMenuExpanded = false
+      console.log('[Qwen Navigator] Меню свернуто до минимальной ширины')
+    } else {
+      // Разворачиваем меню на всю ширину вьюпорта
+      navigationMenu.style.width = '100vw'
+      isMenuExpanded = true
+      console.log('[Qwen Navigator] Меню развернуто на всю ширину')
+    }
+
+    // Убираем класс resizing через небольшую задержку
+    setTimeout(() => {
+      navigationMenu.classList.remove('resizing')
+    }, 50)
+
+    // Сохраняем текущее состояние ширины
+    const currentWidth = navigationMenu.offsetWidth
+    localStorage.setItem(STORAGE_KEY, currentWidth.toString())
   }
 
   // ============================================
