@@ -30,6 +30,16 @@
   // Флаг инициализации
   let isInitialized = false
 
+  // Переменные для изменения размера
+  let isResizing = false
+  let startX = 0
+  let startWidth = 0
+
+  // Константы для размеров меню
+  const MIN_MENU_WIDTH = 260
+  const DEFAULT_MENU_WIDTH = 340
+  const STORAGE_KEY = 'qwen-nav-menu-width'
+
   // ============================================
   // Ожидание появления контейнера чата
   // ============================================
@@ -116,8 +126,19 @@
     // Создаём контейнер меню
     navigationMenu = document.createElement('div')
     navigationMenu.id = MENU_ID
+
+    // Восстанавливаем сохранённую ширину или используем дефолтную
+    const savedWidth = localStorage.getItem(STORAGE_KEY)
+    if (savedWidth) {
+      const width = parseInt(savedWidth, 10)
+      if (width >= MIN_MENU_WIDTH) {
+        navigationMenu.style.width = `${width}px`
+      }
+    }
+
     navigationMenu.innerHTML = `
-      <div class="qwen-nav-header">Chat navigation</div>
+      <div class="qwen-nav-resizer"></div>
+      <div class="qwen-nav-header">Навигация по чату</div>
       <div class="qwen-nav-list" id="qwen-nav-list">
         <div class="qwen-nav-empty">Загрузка...</div>
       </div>
@@ -125,6 +146,9 @@
 
     // Добавляем меню в body
     document.body.appendChild(navigationMenu)
+
+    // Инициализируем изменение размера
+    initializeResizer()
 
     console.log('[Qwen Navigator] Меню создано')
   }
@@ -146,13 +170,15 @@
 
     const messages = []
 
-    userMessages.forEach((messageElement) => {
+    userMessages.forEach((messageElement, index) => {
       // Получаем ID элемента для якоря
-      const messageId = messageElement.id
+      let messageId = messageElement.id
 
+      // Если ID отсутствует, создаём временный уникальный ID
       if (!messageId) {
-        console.warn('[Qwen Navigator] Сообщение без ID:', messageElement)
-        return
+        messageId = `qwen-nav-msg-${Date.now()}-${index}`
+        messageElement.id = messageId
+        console.warn('[Qwen Navigator] Создан ID для сообщения без ID:', messageId)
       }
 
       // Находим текст сообщения
@@ -165,6 +191,12 @@
 
       // Извлекаем текст и берем только первую строку
       let messageText = contentElement.textContent.trim()
+
+      // Если текст пустой, пропускаем
+      if (!messageText) {
+        console.warn('[Qwen Navigator] Пустое сообщение пропущено')
+        return
+      }
 
       // Если текст многострочный, берём только первую строку
       const firstLine = messageText.split('\n')[0]
@@ -201,16 +233,24 @@
     }
 
     // Генерируем HTML ссылок
-    const linksHTML = messages.map((message, index) => {
-      return `
-        <a href="#${message.id}"
-           class="qwen-nav-item"
-           data-message-id="${message.id}"
-           title="${escapeHtml(message.text)}">
-          ${escapeHtml(message.text)}
-        </a>
-      `
-    }).join('')
+    const linksHTML = messages
+      .filter(message => message.id && message.text) // Фильтруем только валидные сообщения
+      .map((message, index) => {
+        return `
+          <a href="#${message.id}"
+             class="qwen-nav-item"
+             data-message-id="${message.id}"
+             title="${escapeHtml(message.text)}">
+            ${escapeHtml(message.text)}
+          </a>
+        `
+      }).join('')
+
+    // Если после фильтрации не осталось сообщений
+    if (!linksHTML) {
+      listContainer.innerHTML = '<div class="qwen-nav-empty">Нет сообщений</div>'
+      return
+    }
 
     listContainer.innerHTML = linksHTML
 
@@ -392,6 +432,72 @@
 
     const isVisible = navigationMenu.classList.contains('visible')
     console.log(`[Qwen Navigator] Меню ${isVisible ? 'открыто' : 'закрыто'}`)
+  }
+
+  // ============================================
+  // Инициализация изменения размера меню
+  // ============================================
+
+  function initializeResizer() {
+    const resizer = navigationMenu.querySelector('.qwen-nav-resizer')
+
+    if (!resizer) {
+      console.error('[Qwen Navigator] Ручка изменения размера не найдена')
+      return
+    }
+
+    resizer.addEventListener('mousedown', startResize)
+
+    console.log('[Qwen Navigator] Изменение размера инициализировано')
+  }
+
+  function startResize(e) {
+    isResizing = true
+    startX = e.clientX
+    startWidth = navigationMenu.offsetWidth
+
+    // Добавляем класс для отключения transitions
+    navigationMenu.classList.add('resizing')
+
+    // Добавляем обработчики на document для отслеживания движения мыши
+    document.addEventListener('mousemove', resize)
+    document.addEventListener('mouseup', stopResize)
+
+    // Предотвращаем выделение текста во время перетаскивания
+    e.preventDefault()
+  }
+
+  function resize(e) {
+    if (!isResizing) return
+
+    // Вычисляем новую ширину
+    // clientX уменьшается при движении влево, увеличивается при движении вправо
+    const deltaX = startX - e.clientX
+    const newWidth = startWidth + deltaX
+
+    // Применяем ограничения
+    if (newWidth >= MIN_MENU_WIDTH && newWidth <= window.innerWidth) {
+      navigationMenu.style.width = `${newWidth}px`
+    }
+  }
+
+  function stopResize() {
+    if (!isResizing) return
+
+    isResizing = false
+
+    // Убираем класс resizing
+    navigationMenu.classList.remove('resizing')
+
+    // Сохраняем ширину в localStorage
+    const currentWidth = navigationMenu.offsetWidth
+    localStorage.setItem(STORAGE_KEY, currentWidth.toString())
+
+    // Удаляем обработчики
+    document.removeEventListener('mousemove', resize)
+    document.removeEventListener('mouseup', stopResize)
+
+    console.log('[Qwen Navigator] Ширина меню сохранена:', currentWidth)
   }
 
   // ============================================
