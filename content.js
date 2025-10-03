@@ -243,7 +243,7 @@
           <a href="#${message.id}"
              class="qwen-nav-item"
              data-message-id="${message.id}"
-             title="${escapeHtml(message.text)}">
+             title="${escapeAttribute(message.text)}">
             ${escapeHtml(message.text)}
           </a>
         `
@@ -556,13 +556,23 @@
   }
 
   // ============================================
-  // Вспомогательная функция: экранирование HTML
+  // Вспомогательные функции: экранирование HTML
   // ============================================
 
   function escapeHtml(text) {
     const div = document.createElement('div')
     div.textContent = text
     return div.innerHTML
+  }
+
+  function escapeAttribute(text) {
+    // Создаем временный элемент для безопасного экранирования
+    const div = document.createElement('div')
+    div.textContent = text
+    // Получаем безопасный HTML и дополнительно экранируем кавычки
+    return div.innerHTML
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
   }
 
   // ============================================
