@@ -192,7 +192,7 @@
         return
       }
 
-      // Извлекаем текст и берем только первую строку
+      // Извлекаем текст и заменяем все переносы строк на пробелы
       let messageText = contentElement.textContent.trim()
 
       // Если текст пустой, пропускаем
@@ -201,12 +201,12 @@
         return
       }
 
-      // Если текст многострочный, берём только первую строку
-      const firstLine = messageText.split('\n')[0]
+      // Заменяем все переносы строк на пробелы и убираем множественные пробелы
+      messageText = messageText.replace(/\s+/g, ' ').trim()
 
       messages.push({
         id: messageId,
-        text: firstLine,
+        text: messageText,
         element: messageElement
       })
     })
