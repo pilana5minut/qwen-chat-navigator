@@ -55,6 +55,7 @@
   width: 2px;
   height: 40px;
   background: rgba(97, 92, 237, 0.3);
+
   border-radius: 1px;
 }
 
@@ -74,7 +75,7 @@ body.dark .qwen-nav-resizer:active {
 
 html.dark .qwen-nav-resizer::before,
 body.dark .qwen-nav-resizer::before {
-  background: rgba(167, 139, 250, 0.4);
+  background: #49477e;
 }
 
 /* Заголовок меню */
@@ -88,7 +89,7 @@ body.dark .qwen-nav-resizer::before {
 
 html.dark .qwen-nav-header,
 body.dark .qwen-nav-header {
-  color: #fafafc;
+  color: #8583f6;
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -147,15 +148,15 @@ body.dark .qwen-nav-list::-webkit-scrollbar-thumb {
 
 html.dark .qwen-nav-item,
 body.dark .qwen-nav-item {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(139, 92, 246, 0.3);
+  background: #27263f;
+  border-color: #49477e;
   color: #fafafc;
 }
 
 html.dark .qwen-nav-item:hover,
 body.dark .qwen-nav-item:hover {
-  background: rgba(139, 92, 246, 0.1);
-  border-color: rgba(139, 92, 246, 0.5);
+  background: #323153;
+  border-color: #605fac;
 }
 
 /* Пустое состояние */

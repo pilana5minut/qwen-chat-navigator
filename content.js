@@ -40,7 +40,7 @@
   const DEFAULT_MENU_WIDTH = 340
   const STORAGE_KEY = 'qwen-nav-menu-width'
 
-  // Флаг состояния меню (развернуто/свернуто)
+  // Флаг состояния меню (развёрнуто/свёрнуто)
   let isMenuExpanded = false
 
   // ============================================
@@ -141,7 +141,7 @@
 
     navigationMenu.innerHTML = `
       <div class="qwen-nav-resizer"></div>
-      <div class="qwen-nav-header">Навигация по чату</div>
+      <div class="qwen-nav-header">Навигация по чату (0)</div>
       <div class="qwen-nav-list" id="qwen-nav-list">
         <div class="qwen-nav-empty">Загрузка...</div>
       </div>
@@ -223,11 +223,21 @@
   function updateNavigationLinks() {
     const messages = getUserMessages()
     const listContainer = document.getElementById('qwen-nav-list')
+    const headerElement = document.querySelector('.qwen-nav-header')
 
     if (!listContainer) {
       console.error('[Qwen Navigator] Контейнер списка не найден')
       return
     }
+
+    if (!headerElement) {
+      console.error('[Qwen Navigator] Заголовок меню не найден')
+      return
+    }
+
+    // Обновляем заголовок с количеством сообщений
+    const messageCount = messages.length
+    headerElement.textContent = `Навигация по чату (${messageCount})`
 
     // Если нет сообщений, показываем пустое состояние
     if (messages.length === 0) {
@@ -252,6 +262,8 @@
     // Если после фильтрации не осталось сообщений
     if (!linksHTML) {
       listContainer.innerHTML = '<div class="qwen-nav-empty">Нет сообщений</div>'
+      // Обновляем счётчик на 0, так как валидных сообщений нет
+      headerElement.textContent = `Навигация по чату (0)`
       return
     }
 
@@ -266,7 +278,7 @@
     // Прокручиваем список к последней ссылке
     scrollToLastLink()
 
-    console.log('[Qwen Navigator] Список ссылок обновлён')
+    console.log('[Qwen Navigator] Список ссылок обновлён. Количество сообщений:', messageCount)
   }
 
   // ============================================
@@ -518,12 +530,12 @@
       // Сворачиваем меню до минимальной ширины
       navigationMenu.style.width = `${MIN_MENU_WIDTH}px`
       isMenuExpanded = false
-      console.log('[Qwen Navigator] Меню свернуто до минимальной ширины')
+      console.log('[Qwen Navigator] Меню свёрнуто до минимальной ширины')
     } else {
       // Разворачиваем меню на всю ширину вьюпорта
       navigationMenu.style.width = '100vw'
       isMenuExpanded = true
-      console.log('[Qwen Navigator] Меню развернуто на всю ширину')
+      console.log('[Qwen Navigator] Меню развёрнуто на всю ширину')
     }
 
     // Убираем класс resizing через небольшую задержку
