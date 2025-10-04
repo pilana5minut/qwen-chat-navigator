@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Qwen Chat Navigator",
   "version": "1.0.0",
-  "description": "Навигация по сообщениям в чате Qwen",
+  "description": "Navigate through messages in Qwen chat",
   "permissions": [
     "activeTab",
     "scripting"
@@ -11,7 +11,7 @@
     "https://chat.qwen.ai/*"
   ],
   "action": {
-    "default_title": "Переключить навигационное меню"
+    "default_title": "Toggle navigation menu"
   },
   "background": {
     "service_worker": "background.js"

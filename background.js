@@ -1,39 +1,39 @@
-// Слушаем клик по иконке расширения
+// Listen for extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
-  // Проверяем, что мы на нужном сайте
+  // Check that we are on the correct site
   if (!tab.url || !tab.url.includes('chat.qwen.ai')) {
-    console.log('[Qwen Navigator] Расширение работает только на chat.qwen.ai')
+    console.log('[Qwen Navigator] Extension only works on chat.qwen.ai')
     return
   }
 
   try {
-    // Отправляем сообщение в content script активной вкладки
+    // Send message to content script of active tab
     await chrome.tabs.sendMessage(tab.id, {
       action: 'toggleMenu'
     })
-    console.log('[Qwen Navigator] Сообщение отправлено')
+    console.log('[Qwen Navigator] Message sent')
   } catch (error) {
-    console.error('[Qwen Navigator] Ошибка отправки сообщения:', error)
+    console.error('[Qwen Navigator] Error sending message:', error)
 
-    // Если content script не загружен, пробуем его внедрить
+    // If content script is not loaded, try to inject it
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files: ['content.js']
       })
 
-      // Повторяем попытку отправки сообщения
+      // Retry sending message
       setTimeout(async () => {
         try {
           await chrome.tabs.sendMessage(tab.id, {
             action: 'toggleMenu'
           })
         } catch (retryError) {
-          console.error('[Qwen Navigator] Повторная попытка не удалась:', retryError)
+          console.error('[Qwen Navigator] Retry attempt failed:', retryError)
         }
       }, 100)
     } catch (injectError) {
-      console.error('[Qwen Navigator] Не удалось внедрить скрипт:', injectError)
+      console.error('[Qwen Navigator] Failed to inject script:', injectError)
     }
   }
 })

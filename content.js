@@ -5,49 +5,56 @@
 (function () {
   'use strict'
 
-  // Конфигурация селекторов
+  // Selectors configuration
   const SELECTORS = {
     chatContainer: '#chat-message-container',
     userMessage: '.user-message',
     userMessageContent: '.user-message-content',
   }
 
-  // ID меню навигации
+  // Navigation menu ID
   const MENU_ID = 'qwen-nav-menu'
 
-  // Переменная для хранения ссылки на меню
+  // Variable for storing menu reference
   let navigationMenu = null
 
-  // Переменная для MutationObserver
+  // Variable for MutationObserver
   let chatObserver = null
 
-  // Переменная для наблюдения за появлением контейнера
+  // Variable for observing container appearance
   let containerObserver = null
 
-  // Переменная для URL observer
+  // Variable for URL observer
   let urlObserver = null
 
-  // Текущий URL
+  // Current URL
   let currentUrl = window.location.href
 
-  // Флаг инициализации
+  // Initialization flag
   let isInitialized = false
 
-  // Переменные для изменения размера
+  // Variables for resizing
   let isResizing = false
   let startX = 0
   let startWidth = 0
 
-  // Константы для размеров меню
+  // Constants for menu sizes
   const MIN_MENU_WIDTH = 260
   const DEFAULT_MENU_WIDTH = 340
   const STORAGE_KEY = 'qwen-nav-menu-width'
 
-  // Флаг состояния меню (развёрнуто/свёрнуто)
+  // Menu state flag (expanded/collapsed)
   let isMenuExpanded = false
 
+  // Variables for tracking message loading stabilization
+  let messageCountStabilizationTimer = null
+  let lastMessageCount = 0
+  let stabilizationAttempts = 0
+  const MAX_STABILIZATION_ATTEMPTS = 5
+  const STABILIZATION_DELAY = 500
+
   // ============================================
-  // Ожидание появления контейнера чата
+  // Wait for chat container to appear
   // ============================================
 
   function waitForChatContainer(maxAttempts = 40, interval = 300) {
@@ -58,7 +65,7 @@
         const container = document.querySelector(SELECTORS.chatContainer)
 
         if (container) {
-          console.log('[Qwen Navigator] Контейнер чата найден')
+          console.log('[Qwen Navigator] Chat container found')
           resolve(container)
           return
         }
@@ -66,13 +73,13 @@
         attempts++
 
         if (attempts >= maxAttempts) {
-          console.warn('[Qwen Navigator] Контейнер чата не найден после', maxAttempts, 'попыток')
-          // Вместо reject делаем resolve с null, чтобы не прерывать работу
+          console.warn('[Qwen Navigator] Chat container not found after', maxAttempts, 'attempts')
+          // Instead of reject, resolve with null to avoid breaking execution
           resolve(null)
           return
         }
 
-        console.log(`[Qwen Navigator] Попытка ${attempts}/${maxAttempts}...`)
+        console.log(`[Qwen Navigator] Attempt ${attempts}/${maxAttempts}...`)
         setTimeout(checkContainer, interval)
       }
 
@@ -81,72 +88,136 @@
   }
 
   // ============================================
-  // Инициализация расширения
+  // Extension initialization
   // ============================================
 
   async function initialize() {
-    if (isInitialized) {
-      console.log('[Qwen Navigator] Расширение уже инициализировано')
-      return
+    console.log('[Qwen Navigator] Starting extension initialization... isInitialized =', isInitialized)
+
+    // Reset stabilization counters
+    resetStabilization()
+
+    // Create navigation menu immediately (if not already created)
+    if (!navigationMenu || !document.getElementById(MENU_ID)) {
+      createNavigationMenu()
     }
 
-    console.log('[Qwen Navigator] Начало инициализации расширения...')
-
-    // Создаём меню навигации сразу
-    createNavigationMenu()
-
     try {
-      // Ждём появления контейнера чата
+      // Wait for chat container to appear
       const container = await waitForChatContainer()
 
       if (!container) {
-        console.warn('[Qwen Navigator] Контейнер не найден, но продолжаем работу')
-        // Показываем пустое состояние
+        console.warn('[Qwen Navigator] Container not found, but continuing work')
+        // Show empty state
         updateNavigationLinks()
-        // Запускаем наблюдение за появлением контейнера через MutationObserver
+        // Start observing for container appearance via MutationObserver
         startObservingForContainer()
         isInitialized = true
+
+        // IMPORTANT: Start URL observer even if container is not found
+        if (!urlObserver) {
+          startObservingUrl()
+        }
         return
       }
 
-      // Собираем существующие сообщения
-      updateNavigationLinks()
+      // Start delayed message collection (wait for all to load)
+      startMessageStabilization()
 
-      // Запускаем наблюдение за новыми сообщениями
+      // Start observing new messages
       startObservingChat()
 
-      // Запускаем отслеживание смены URL
+      // Start tracking URL changes (only once on first load)
       if (!urlObserver) {
         startObservingUrl()
       }
 
       isInitialized = true
-      console.log('[Qwen Navigator] Инициализация завершена успешно')
+      console.log('[Qwen Navigator] Initialization completed successfully')
     } catch (error) {
-      console.error('[Qwen Navigator] Ошибка инициализации:', error)
-      // Даже при ошибке отмечаем как инициализированное
+      console.error('[Qwen Navigator] Initialization error:', error)
+      // Even on error, mark as initialized
       isInitialized = true
     }
   }
 
   // ============================================
-  // Создание HTML структуры меню
+  // Reset stabilization counters
+  // ============================================
+
+  function resetStabilization() {
+    if (messageCountStabilizationTimer) {
+      clearTimeout(messageCountStabilizationTimer)
+      messageCountStabilizationTimer = null
+    }
+    lastMessageCount = 0
+    stabilizationAttempts = 0
+  }
+
+  // ============================================
+  // Start message loading stabilization mechanism
+  // ============================================
+
+  function startMessageStabilization() {
+    console.log('[Qwen Navigator] Starting message loading stabilization mechanism...')
+
+    // Reset previous timer if exists
+    resetStabilization()
+
+    // Start check
+    checkMessageStabilization()
+  }
+
+  // ============================================
+  // Check message count stabilization
+  // ============================================
+
+  function checkMessageStabilization() {
+    const messages = getUserMessages()
+    const currentCount = messages.length
+
+    console.log(`[Qwen Navigator] Stabilization check: found ${currentCount} messages (attempt ${stabilizationAttempts + 1}/${MAX_STABILIZATION_ATTEMPTS})`)
+
+    // If message count changed - reset attempt counter
+    if (currentCount !== lastMessageCount) {
+      console.log(`[Qwen Navigator] Message count changed from ${lastMessageCount} to ${currentCount}, continuing to wait...`)
+      lastMessageCount = currentCount
+      stabilizationAttempts = 0
+    } else {
+      // Count hasn't changed - increment counter
+      stabilizationAttempts++
+      console.log(`[Qwen Navigator] Message count stable (${currentCount}), attempt ${stabilizationAttempts}/${MAX_STABILIZATION_ATTEMPTS}`)
+    }
+
+    // If reached max attempts with stable counter - update menu
+    if (stabilizationAttempts >= MAX_STABILIZATION_ATTEMPTS) {
+      console.log(`[Qwen Navigator] Message loading stabilized at ${currentCount} messages`)
+      updateNavigationLinks()
+      return
+    }
+
+    // Continue checking after delay
+    messageCountStabilizationTimer = setTimeout(checkMessageStabilization, STABILIZATION_DELAY)
+  }
+
+  // ============================================
+  // Create menu HTML structure
   // ============================================
 
   function createNavigationMenu() {
-    // Проверяем, не создано ли меню уже
+    // Check if menu already exists
     const existingMenu = document.getElementById(MENU_ID)
     if (existingMenu) {
-      console.log('[Qwen Navigator] Меню уже существует')
+      console.log('[Qwen Navigator] Menu already exists')
       navigationMenu = existingMenu
       return
     }
 
-    // Создаём контейнер меню
+    // Create menu container
     navigationMenu = document.createElement('div')
     navigationMenu.id = MENU_ID
 
-    // Восстанавливаем сохранённую ширину или используем дефолтную
+    // Restore saved width or use default
     const savedWidth = localStorage.getItem(STORAGE_KEY)
     if (savedWidth) {
       const width = parseInt(savedWidth, 10)
@@ -157,67 +228,67 @@
 
     navigationMenu.innerHTML = `
       <div class="qwen-nav-resizer"></div>
-      <div class="qwen-nav-header">Навигация по чату (0)</div>
+      <div class="qwen-nav-header">Chat Navigation (0)</div>
       <div class="qwen-nav-list" id="qwen-nav-list">
-        <div class="qwen-nav-empty">Загрузка...</div>
+        <div class="qwen-nav-empty">Loading...</div>
       </div>
     `
 
-    // Добавляем меню в body
+    // Add menu to body
     document.body.appendChild(navigationMenu)
 
-    // Инициализируем изменение размера
+    // Initialize resizing
     initializeResizer()
 
-    console.log('[Qwen Navigator] Меню создано')
+    console.log('[Qwen Navigator] Menu created')
   }
 
   // ============================================
-  // Сбор всех сообщений пользователя
+  // Collect all user messages
   // ============================================
 
   function getUserMessages() {
     const chatContainer = document.querySelector(SELECTORS.chatContainer)
 
     if (!chatContainer) {
-      console.log('[Qwen Navigator] Контейнер чата не найден')
+      console.log('[Qwen Navigator] Chat container not found')
       return []
     }
 
-    // Находим все сообщения пользователя
+    // Find all user messages
     const userMessages = chatContainer.querySelectorAll(SELECTORS.userMessage)
 
     const messages = []
 
     userMessages.forEach((messageElement, index) => {
-      // Получаем ID элемента для скора
+      // Get element ID for anchor
       let messageId = messageElement.id
 
-      // Если ID отсутствует, создаём временный уникальный ID
+      // If ID is missing, create temporary unique ID
       if (!messageId) {
         messageId = `qwen-nav-msg-${Date.now()}-${index}`
         messageElement.id = messageId
-        console.warn('[Qwen Navigator] Создан ID для сообщения без ID:', messageId)
+        console.warn('[Qwen Navigator] Created ID for message without ID:', messageId)
       }
 
-      // Находим текст сообщения
+      // Find message text
       const contentElement = messageElement.querySelector(SELECTORS.userMessageContent)
 
       if (!contentElement) {
-        console.warn('[Qwen Navigator] Текст сообщения не найден:', messageElement)
+        console.warn('[Qwen Navigator] Message text not found:', messageElement)
         return
       }
 
-      // Извлекаем текст и заменяем все переносы строк на пробелы
+      // Extract text and replace all line breaks with spaces
       let messageText = contentElement.textContent.trim()
 
-      // Если текст пустой, пропускаем
+      // If text is empty, skip
       if (!messageText) {
-        console.warn('[Qwen Navigator] Пустое сообщение пропущено')
+        // Removed logging of empty messages as this is normal during loading
         return
       }
 
-      // Заменяем все переносы строк на пробелы и убираем множественные пробелы
+      // Replace all line breaks with spaces and remove multiple spaces
       messageText = messageText.replace(/\s+/g, ' ').trim()
 
       messages.push({
@@ -227,13 +298,13 @@
       })
     })
 
-    console.log(`[Qwen Navigator] Найдено сообщений: ${messages.length}`)
+    console.log(`[Qwen Navigator] Messages found: ${messages.length}`)
 
     return messages
   }
 
   // ============================================
-  // Обновление списка навигационных ссылок
+  // Update navigation links list
   // ============================================
 
   function updateNavigationLinks() {
@@ -242,28 +313,28 @@
     const headerElement = document.querySelector('.qwen-nav-header')
 
     if (!listContainer) {
-      console.error('[Qwen Navigator] Контейнер списка не найден')
+      console.error('[Qwen Navigator] List container not found')
       return
     }
 
     if (!headerElement) {
-      console.error('[Qwen Navigator] Заголовок меню не найден')
+      console.error('[Qwen Navigator] Menu header not found')
       return
     }
 
-    // Обновляем заголовок с количеством сообщений
+    // Update header with message count
     const messageCount = messages.length
-    headerElement.textContent = `Навигация по чату (${messageCount})`
+    headerElement.textContent = `Chat Navigation (${messageCount})`
 
-    // Если нет сообщений, показываем пустое состояние
+    // If no messages, show empty state
     if (messages.length === 0) {
-      listContainer.innerHTML = '<div class="qwen-nav-empty">Нет сообщений</div>'
+      listContainer.innerHTML = '<div class="qwen-nav-empty">No messages</div>'
       return
     }
 
-    // Генерируем HTML ссылок
+    // Generate links HTML
     const linksHTML = messages
-      .filter(message => message.id && message.text) // Фильтруем только валидные сообщения
+      .filter(message => message.id && message.text) // Filter only valid messages
       .map((message, index) => {
         return `
           <a href="#${message.id}"
@@ -275,30 +346,30 @@
         `
       }).join('')
 
-    // Если после фильтрации не осталось сообщений
+    // If no messages left after filtering
     if (!linksHTML) {
-      listContainer.innerHTML = '<div class="qwen-nav-empty">Нет сообщений</div>'
-      // Обновляем счётчик на 0, так как валидных сообщений нет
-      headerElement.textContent = `Навигация по чату (0)`
+      listContainer.innerHTML = '<div class="qwen-nav-empty">No messages</div>'
+      // Update counter to 0, as there are no valid messages
+      headerElement.textContent = `Chat Navigation (0)`
       return
     }
 
     listContainer.innerHTML = linksHTML
 
-    // Добавляем обработчики клика на все ссылки
+    // Add click handlers to all links
     const links = listContainer.querySelectorAll('.qwen-nav-item')
     links.forEach(link => {
       link.addEventListener('click', handleLinkClick)
     })
 
-    // Прокручиваем список к последней ссылке
+    // Scroll list to last link
     scrollToLastLink()
 
-    console.log('[Qwen Navigator] Список ссылок обновлён. Количество сообщений:', messageCount)
+    console.log('[Qwen Navigator] Links list updated. Message count:', messageCount)
   }
 
   // ============================================
-  // Обработчик клика по ссылке навигации
+  // Navigation link click handler
   // ============================================
 
   function handleLinkClick(event) {
@@ -307,38 +378,38 @@
     const messageId = event.currentTarget.dataset.messageId
 
     if (!messageId) {
-      console.error('[Qwen Navigator] ID сообщения не найден')
+      console.error('[Qwen Navigator] Message ID not found')
       return
     }
 
-    // Находим целевой элемент
+    // Find target element
     let targetElement = document.getElementById(messageId)
 
     if (!targetElement) {
-      console.warn(`[Qwen Navigator] Элемент с ID ${messageId} не найден напрямую, пробуем найти через селектор`)
-      // Пробуем найти через селектор (возможно ID изменился)
+      console.warn(`[Qwen Navigator] Element with ID ${messageId} not found directly, trying selector`)
+      // Try to find via selector (ID may have changed)
       targetElement = document.querySelector(`[id="${messageId}"]`)
     }
 
     if (!targetElement) {
-      console.error(`[Qwen Navigator] Элемент с ID ${messageId} не найден. Обновляем список ссылок...`)
-      // Обновляем список ссылок на случай если структура изменилась
+      console.error(`[Qwen Navigator] Element with ID ${messageId} not found. Updating links list...`)
+      // Update links list in case structure has changed
       updateNavigationLinks()
       return
     }
 
-    // Плавная прокрутка к элементу
+    // Smooth scroll to element
     targetElement.scrollIntoView({
       behavior: 'smooth',
       block: 'start',
       inline: 'nearest'
     })
 
-    console.log(`[Qwen Navigator] Прокрутка к сообщению: ${messageId}`)
+    console.log(`[Qwen Navigator] Scrolled to message: ${messageId}`)
   }
 
   // ============================================
-  // Прокрутка списка к последней ссылке
+  // Scroll list to last link
   // ============================================
 
   function scrollToLastLink() {
@@ -350,10 +421,10 @@
 
     if (links.length === 0) return
 
-    // Получаем последнюю ссылку
+    // Get last link
     const lastLink = links[links.length - 1]
 
-    // Прокручиваем к ней
+    // Scroll to it
     lastLink.scrollIntoView({
       behavior: 'smooth',
       block: 'end'
@@ -361,91 +432,105 @@
   }
 
   // ============================================
-  // Отслеживание смены URL (переключение чатов)
+  // Track URL changes (chat switching)
   // ============================================
 
   function startObservingUrl() {
-    // Проверяем URL каждые 500мс
+    console.log('[Qwen Navigator] Starting URL change tracking...')
+
+    // Check URL every 500ms
     const checkUrlInterval = setInterval(() => {
       const newUrl = window.location.href
 
       if (newUrl !== currentUrl) {
-        console.log('[Qwen Navigator] Обнаружена смена URL')
-        console.log('[Qwen Navigator] Старый URL:', currentUrl)
-        console.log('[Qwen Navigator] Новый URL:', newUrl)
+        console.log('[Qwen Navigator] ===== URL CHANGE DETECTED =====')
+        console.log('[Qwen Navigator] Old URL:', currentUrl)
+        console.log('[Qwen Navigator] New URL:', newUrl)
 
         currentUrl = newUrl
 
-        // Сбрасываем флаг инициализации
+        // CRITICAL: Reset initialization flag FIRST
         isInitialized = false
+        console.log('[Qwen Navigator] isInitialized flag reset to false')
 
-        // Останавливаем все observers
+        // Stop all observers
         if (chatObserver) {
+          console.log('[Qwen Navigator] Stopping chatObserver')
           chatObserver.disconnect()
           chatObserver = null
         }
 
         if (containerObserver) {
+          console.log('[Qwen Navigator] Stopping containerObserver')
           containerObserver.disconnect()
           containerObserver = null
         }
 
-        // Очищаем меню
+        // Reset stabilization
+        console.log('[Qwen Navigator] Resetting stabilization')
+        resetStabilization()
+
+        // Clear menu
         const listContainer = document.getElementById('qwen-nav-list')
         const headerElement = document.querySelector('.qwen-nav-header')
 
         if (listContainer) {
-          listContainer.innerHTML = '<div class="qwen-nav-empty">Загрузка...</div>'
+          listContainer.innerHTML = '<div class="qwen-nav-empty">Loading...</div>'
+          console.log('[Qwen Navigator] Menu cleared')
         }
 
         if (headerElement) {
-          headerElement.textContent = 'Навигация по чату (0)'
+          headerElement.textContent = 'Chat Navigation (0)'
         }
 
-        // Переинициализируем расширение с задержкой
-        setTimeout(initialize, 300)
+        // Reinitialize extension with delay
+        console.log('[Qwen Navigator] Starting reinitialization in 300ms...')
+        setTimeout(() => {
+          console.log('[Qwen Navigator] Calling initialize() after URL change')
+          initialize()
+        }, 300)
       }
     }, 500)
 
-    // Сохраняем интервал в urlObserver для возможности остановки
+    // Save interval in urlObserver for possible stopping
     urlObserver = { interval: checkUrlInterval }
 
-    console.log('[Qwen Navigator] Отслеживание смены URL запущено')
+    console.log('[Qwen Navigator] URL change tracking started (interval every 500ms)')
   }
 
   // ============================================
-  // Наблюдение за появлением контейнера (если его ещё нет)
+  // Observe container appearance (if not present yet)
   // ============================================
 
   function startObservingForContainer() {
-    // Если уже есть observer для контейнера, останавливаем его
+    // If observer for container already exists, stop it
     if (containerObserver) {
       containerObserver.disconnect()
     }
 
-    console.log('[Qwen Navigator] Запуск наблюдения за появлением контейнера чата...')
+    console.log('[Qwen Navigator] Starting observation for chat container appearance...')
 
-    // Наблюдаем за изменениями в body
+    // Observe changes in body
     containerObserver = new MutationObserver((mutations) => {
-      // Проверяем, появился ли контейнер чата
+      // Check if chat container appeared
       const container = document.querySelector(SELECTORS.chatContainer)
 
       if (container) {
-        console.log('[Qwen Navigator] Контейнер чата обнаружен через MutationObserver')
+        console.log('[Qwen Navigator] Chat container detected via MutationObserver')
 
-        // Останавливаем наблюдение за появлением контейнера
+        // Stop observing container appearance
         containerObserver.disconnect()
         containerObserver = null
 
-        // Обновляем список сообщений
-        updateNavigationLinks()
+        // Start delayed message collection
+        startMessageStabilization()
 
-        // Запускаем наблюдение за новыми сообщениями
+        // Start observing new messages
         startObservingChat()
       }
     })
 
-    // Начинаем наблюдение за body
+    // Start observing body
     containerObserver.observe(document.body, {
       childList: true,
       subtree: true
@@ -453,30 +538,30 @@
   }
 
   // ============================================
-  // Наблюдение за изменениями в чате
+  // Observe chat changes
   // ============================================
 
   function startObservingChat() {
     const chatContainer = document.querySelector(SELECTORS.chatContainer)
 
     if (!chatContainer) {
-      console.warn('[Qwen Navigator] Контейнер чата не найден для наблюдения')
+      console.warn('[Qwen Navigator] Chat container not found for observation')
       return
     }
 
-    // Если уже есть observer, останавливаем его
+    // If observer already exists, stop it
     if (chatObserver) {
       chatObserver.disconnect()
     }
 
-    // Создаём MutationObserver для отслеживания изменений
+    // Create MutationObserver to track changes
     chatObserver = new MutationObserver((mutations) => {
-      // Проверяем, были ли добавлены новые элементы
+      // Check if new elements were added
       let shouldUpdate = false
 
       mutations.forEach((mutation) => {
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-          // Проверяем, есть ли среди добавленных узлов сообщения пользователя
+          // Check if added nodes contain user messages
           mutation.addedNodes.forEach((node) => {
             if (node.nodeType === Node.ELEMENT_NODE) {
               if (node.classList && node.classList.contains('user-message')) {
@@ -490,32 +575,32 @@
       })
 
       if (shouldUpdate) {
-        console.log('[Qwen Navigator] Обнаружено новое сообщение')
-        // Небольшая задержка, чтобы DOM успел обновиться
-        setTimeout(updateNavigationLinks, 100)
+        console.log('[Qwen Navigator] New message detected, starting stabilization...')
+        // Start stabilization mechanism instead of direct update
+        startMessageStabilization()
       }
     })
 
-    // Начинаем наблюдение
+    // Start observation
     chatObserver.observe(chatContainer, {
       childList: true,
       subtree: true
     })
 
-    console.log('[Qwen Navigator] Наблюдение за чатом запущено')
+    console.log('[Qwen Navigator] Chat observation started')
   }
 
   // ============================================
-  // Переключение видимости меню
+  // Toggle menu visibility
   // ============================================
 
   function toggleMenu() {
     if (!navigationMenu) {
-      console.error('[Qwen Navigator] Меню не инициализировано')
-      // Пробуем найти меню в DOM
+      console.error('[Qwen Navigator] Menu not initialized')
+      // Try to find menu in DOM
       navigationMenu = document.getElementById(MENU_ID)
       if (!navigationMenu) {
-        console.error('[Qwen Navigator] Меню не найдено в DOM')
+        console.error('[Qwen Navigator] Menu not found in DOM')
         return
       }
     }
@@ -523,25 +608,25 @@
     navigationMenu.classList.toggle('visible')
 
     const isVisible = navigationMenu.classList.contains('visible')
-    console.log(`[Qwen Navigator] Меню ${isVisible ? 'открыто' : 'закрыто'}`)
+    console.log(`[Qwen Navigator] Menu ${isVisible ? 'opened' : 'closed'}`)
   }
 
   // ============================================
-  // Инициализация изменения размера меню
+  // Initialize menu resizing
   // ============================================
 
   function initializeResizer() {
     const resizer = navigationMenu.querySelector('.qwen-nav-resizer')
 
     if (!resizer) {
-      console.error('[Qwen Navigator] Ручка изменения размера не найдена')
+      console.error('[Qwen Navigator] Resize handle not found')
       return
     }
 
     resizer.addEventListener('mousedown', startResize)
     resizer.addEventListener('dblclick', toggleMenuWidth)
 
-    console.log('[Qwen Navigator] Изменение размера инициализировано')
+    console.log('[Qwen Navigator] Resizing initialized')
   }
 
   function startResize(e) {
@@ -549,26 +634,26 @@
     startX = e.clientX
     startWidth = navigationMenu.offsetWidth
 
-    // Добавляем класс для отключения transitions
+    // Add class to disable transitions
     navigationMenu.classList.add('resizing')
 
-    // Добавляем обработчики на document для отслеживания движения мыши
+    // Add handlers to document to track mouse movement
     document.addEventListener('mousemove', resize)
     document.addEventListener('mouseup', stopResize)
 
-    // Предотвращаем выделение текста во время перетаскивания
+    // Prevent text selection during dragging
     e.preventDefault()
   }
 
   function resize(e) {
     if (!isResizing) return
 
-    // Вычисляем новую ширину
-    // clientX уменьшается при движении влево, увеличивается при движении вправо
+    // Calculate new width
+    // clientX decreases when moving left, increases when moving right
     const deltaX = startX - e.clientX
     const newWidth = startWidth + deltaX
 
-    // Применяем ограничения
+    // Apply constraints
     if (newWidth >= MIN_MENU_WIDTH && newWidth <= window.innerWidth) {
       navigationMenu.style.width = `${newWidth}px`
     }
@@ -579,73 +664,73 @@
 
     isResizing = false
 
-    // Убираем класс resizing
+    // Remove resizing class
     navigationMenu.classList.remove('resizing')
 
-    // Сохраняем ширину в localStorage
+    // Save width to localStorage
     const currentWidth = navigationMenu.offsetWidth
     localStorage.setItem(STORAGE_KEY, currentWidth.toString())
 
-    // Удаляем обработчики
+    // Remove handlers
     document.removeEventListener('mousemove', resize)
     document.removeEventListener('mouseup', stopResize)
 
-    console.log('[Qwen Navigator] Ширина меню сохранена:', currentWidth)
+    console.log('[Qwen Navigator] Menu width saved:', currentWidth)
   }
 
   // ============================================
-  // Переключение ширины меню (двойной клик)
+  // Toggle menu width (double click)
   // ============================================
 
   function toggleMenuWidth(e) {
     e.preventDefault()
 
-    // Добавляем класс resizing для отключения transitions
+    // Add resizing class to disable transitions
     navigationMenu.classList.add('resizing')
 
     if (isMenuExpanded) {
-      // Сворачиваем меню до минимальной ширины
+      // Collapse menu to minimum width
       navigationMenu.style.width = `${MIN_MENU_WIDTH}px`
       isMenuExpanded = false
-      console.log('[Qwen Navigator] Меню свёрнуто до минимальной ширины')
+      console.log('[Qwen Navigator] Menu collapsed to minimum width')
     } else {
-      // Разворачиваем меню на всю ширину вьюпорта
+      // Expand menu to full viewport width
       navigationMenu.style.width = '100vw'
       isMenuExpanded = true
-      console.log('[Qwen Navigator] Меню развёрнуто на всю ширину')
+      console.log('[Qwen Navigator] Menu expanded to full width')
     }
 
-    // Убираем класс resizing через небольшую задержку
+    // Remove resizing class after short delay
     setTimeout(() => {
       navigationMenu.classList.remove('resizing')
     }, 50)
 
-    // Сохраняем текущее состояние ширины
+    // Save current width state
     const currentWidth = navigationMenu.offsetWidth
     localStorage.setItem(STORAGE_KEY, currentWidth.toString())
   }
 
   // ============================================
-  // Слушатель сообщений от background script
+  // Message listener from background script
   // ============================================
 
   function setupMessageListener() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      console.log('[Qwen Navigator] Получено сообщение:', message)
+      console.log('[Qwen Navigator] Message received:', message)
 
       if (message.action === 'toggleMenu') {
         toggleMenu()
         sendResponse({ success: true })
       }
 
-      return true // Указываем, что ответ будет асинхронным
+      return true // Indicate that response will be asynchronous
     })
 
-    console.log('[Qwen Navigator] Слушатель сообщений настроен')
+    console.log('[Qwen Navigator] Message listener configured')
   }
 
   // ============================================
-  // Вспомогательные функции: экранирование HTML
+  // Helper functions: HTML escaping
   // ============================================
 
   function escapeHtml(text) {
@@ -655,27 +740,27 @@
   }
 
   function escapeAttribute(text) {
-    // Создаем временный элемент для безопасного экранирования
+    // Create temporary element for safe escaping
     const div = document.createElement('div')
     div.textContent = text
-    // Получаем безопасный HTML и дополнительно экранируем кавычки
+    // Get safe HTML and additionally escape quotes
     return div.innerHTML
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;')
   }
 
   // ============================================
-  // Запуск инициализации
+  // Start initialization
   // ============================================
 
-  // Настраиваем слушатель сообщений сразу
+  // Set up message listener immediately
   setupMessageListener()
 
-  // Ждём полной загрузки DOM
+  // Wait for full DOM load
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize)
   } else {
-    // DOM уже загружен, запускаем инициализацию
+    // DOM already loaded, start initialization
     initialize()
   }
 
