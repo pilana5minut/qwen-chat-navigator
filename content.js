@@ -21,6 +21,9 @@
   // Переменная для MutationObserver
   let chatObserver = null
 
+  // Переменная для наблюдения за появлением контейнера
+  let containerObserver = null
+
   // Переменная для URL observer
   let urlObserver = null
 
@@ -47,7 +50,7 @@
   // Ожидание появления контейнера чата
   // ============================================
 
-  function waitForChatContainer(maxAttempts = 20, interval = 500) {
+  function waitForChatContainer(maxAttempts = 40, interval = 300) {
     return new Promise((resolve, reject) => {
       let attempts = 0
 
@@ -63,8 +66,9 @@
         attempts++
 
         if (attempts >= maxAttempts) {
-          console.error('[Qwen Navigator] Контейнер чата не найден после', maxAttempts, 'попыток')
-          reject(new Error('Chat container not found'))
+          console.warn('[Qwen Navigator] Контейнер чата не найден после', maxAttempts, 'попыток')
+          // Вместо reject делаем resolve с null, чтобы не прерывать работу
+          resolve(null)
           return
         }
 
@@ -93,7 +97,17 @@
 
     try {
       // Ждём появления контейнера чата
-      await waitForChatContainer()
+      const container = await waitForChatContainer()
+
+      if (!container) {
+        console.warn('[Qwen Navigator] Контейнер не найден, но продолжаем работу')
+        // Показываем пустое состояние
+        updateNavigationLinks()
+        // Запускаем наблюдение за появлением контейнера через MutationObserver
+        startObservingForContainer()
+        isInitialized = true
+        return
+      }
 
       // Собираем существующие сообщения
       updateNavigationLinks()
@@ -110,6 +124,8 @@
       console.log('[Qwen Navigator] Инициализация завершена успешно')
     } catch (error) {
       console.error('[Qwen Navigator] Ошибка инициализации:', error)
+      // Даже при ошибке отмечаем как инициализированное
+      isInitialized = true
     }
   }
 
@@ -363,14 +379,31 @@
         // Сбрасываем флаг инициализации
         isInitialized = false
 
-        // Останавливаем старый observer
+        // Останавливаем все observers
         if (chatObserver) {
           chatObserver.disconnect()
           chatObserver = null
         }
 
-        // Переинициализируем расширение для нового чата
-        setTimeout(initialize, 500)
+        if (containerObserver) {
+          containerObserver.disconnect()
+          containerObserver = null
+        }
+
+        // Очищаем меню
+        const listContainer = document.getElementById('qwen-nav-list')
+        const headerElement = document.querySelector('.qwen-nav-header')
+
+        if (listContainer) {
+          listContainer.innerHTML = '<div class="qwen-nav-empty">Загрузка...</div>'
+        }
+
+        if (headerElement) {
+          headerElement.textContent = 'Навигация по чату (0)'
+        }
+
+        // Переинициализируем расширение с задержкой
+        setTimeout(initialize, 300)
       }
     }, 500)
 
@@ -381,6 +414,45 @@
   }
 
   // ============================================
+  // Наблюдение за появлением контейнера (если его ещё нет)
+  // ============================================
+
+  function startObservingForContainer() {
+    // Если уже есть observer для контейнера, останавливаем его
+    if (containerObserver) {
+      containerObserver.disconnect()
+    }
+
+    console.log('[Qwen Navigator] Запуск наблюдения за появлением контейнера чата...')
+
+    // Наблюдаем за изменениями в body
+    containerObserver = new MutationObserver((mutations) => {
+      // Проверяем, появился ли контейнер чата
+      const container = document.querySelector(SELECTORS.chatContainer)
+
+      if (container) {
+        console.log('[Qwen Navigator] Контейнер чата обнаружен через MutationObserver')
+
+        // Останавливаем наблюдение за появлением контейнера
+        containerObserver.disconnect()
+        containerObserver = null
+
+        // Обновляем список сообщений
+        updateNavigationLinks()
+
+        // Запускаем наблюдение за новыми сообщениями
+        startObservingChat()
+      }
+    })
+
+    // Начинаем наблюдение за body
+    containerObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    })
+  }
+
+  // ============================================
   // Наблюдение за изменениями в чате
   // ============================================
 
@@ -388,8 +460,13 @@
     const chatContainer = document.querySelector(SELECTORS.chatContainer)
 
     if (!chatContainer) {
-      console.error('[Qwen Navigator] Контейнер чата не найден для наблюдения')
+      console.warn('[Qwen Navigator] Контейнер чата не найден для наблюдения')
       return
+    }
+
+    // Если уже есть observer, останавливаем его
+    if (chatObserver) {
+      chatObserver.disconnect()
     }
 
     // Создаём MutationObserver для отслеживания изменений
