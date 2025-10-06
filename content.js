@@ -43,9 +43,6 @@
   const DEFAULT_MENU_WIDTH = 340
   const STORAGE_KEY = 'qwen-nav-menu-width'
 
-  // Menu state flag (expanded/collapsed)
-  let isMenuExpanded = false
-
   // Variables for tracking message loading stabilization
   let messageCountStabilizationTimer = null
   let lastMessageCount = 0
@@ -688,17 +685,9 @@
     // Add resizing class to disable transitions
     navigationMenu.classList.add('resizing')
 
-    if (isMenuExpanded) {
-      // Collapse menu to minimum width
-      navigationMenu.style.width = `${MIN_MENU_WIDTH}px`
-      isMenuExpanded = false
-      console.log('[Qwen Navigator] Menu collapsed to minimum width')
-    } else {
-      // Expand menu to full viewport width
-      navigationMenu.style.width = '100vw'
-      isMenuExpanded = true
-      console.log('[Qwen Navigator] Menu expanded to full width')
-    }
+    // Always collapse menu to minimum width on double-click
+    navigationMenu.style.width = `${MIN_MENU_WIDTH}px`
+    console.log('[Qwen Navigator] Menu collapsed to minimum width')
 
     // Remove resizing class after short delay
     setTimeout(() => {
