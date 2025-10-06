@@ -14,9 +14,11 @@
 
   // Navigation menu ID
   const MENU_ID = 'qwen-nav-menu'
+  const FLOAT_BTN_ID = 'qwen-nav-float-btn'
 
   // Variable for storing menu reference
   let navigationMenu = null
+  let floatButton = null
 
   // Variable for MutationObserver
   let chatObserver = null
@@ -49,6 +51,16 @@
   let stabilizationAttempts = 0
   const MAX_STABILIZATION_ATTEMPTS = 5
   const STABILIZATION_DELAY = 500
+
+  // SVG icon content
+  const SVG_ICON = `<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="22.000000" height="22.000000" fill="none" customFrame="#000000">
+    <g id="Group 1">
+      <rect id="Rectangle 1" width="20.000000" height="20.000000" x="1.000000" y="1.000000" rx="4.000000" stroke="rgb(78,78,78)" stroke-width="2" />
+      <line id="Line 1" x1="0" x2="22" y1="0" y2="0" stroke="rgb(78,78,78)" stroke-width="2" transform="matrix(0,1,-1,0,11,0)" />
+      <line id="Line 4" x1="14" x2="18" y1="9" y2="9" stroke="rgb(78,78,78)" stroke-width="2" />
+      <line id="Line 5" x1="14" x2="18" y1="5" y2="5" stroke="rgb(78,78,78)" stroke-width="2" />
+    </g>
+  </svg>`
 
   // ============================================
   // Wait for chat container to appear
@@ -97,6 +109,11 @@
     // Create navigation menu immediately (if not already created)
     if (!navigationMenu || !document.getElementById(MENU_ID)) {
       createNavigationMenu()
+    }
+
+    // Create float button (if not already created)
+    if (!floatButton || !document.getElementById(FLOAT_BTN_ID)) {
+      createFloatButton()
     }
 
     try {
@@ -225,7 +242,12 @@
 
     navigationMenu.innerHTML = `
       <div class="qwen-nav-resizer"></div>
-      <div class="qwen-nav-header">Chat Navigation (0)</div>
+      <div class="qwen-nav-header">
+        <button class="qwen-nav-toggle-btn" id="qwen-nav-toggle-btn-header" title="Close menu">
+          ${SVG_ICON}
+        </button>
+        <span class="qwen-nav-header-title">Chat Navigation (0)</span>
+      </div>
       <div class="qwen-nav-list" id="qwen-nav-list">
         <div class="qwen-nav-empty">Loading...</div>
       </div>
@@ -234,10 +256,47 @@
     // Add menu to body
     document.body.appendChild(navigationMenu)
 
+    // Add event handler for toggle button in header
+    const toggleBtnHeader = document.getElementById('qwen-nav-toggle-btn-header')
+    if (toggleBtnHeader) {
+      toggleBtnHeader.addEventListener('click', toggleMenu)
+    }
+
     // Initialize resizing
     initializeResizer()
 
     console.log('[Qwen Navigator] Menu created')
+  }
+
+  // ============================================
+  // Create floating toggle button
+  // ============================================
+
+  function createFloatButton() {
+    // Check if button already exists
+    const existingButton = document.getElementById(FLOAT_BTN_ID)
+    if (existingButton) {
+      console.log('[Qwen Navigator] Float button already exists')
+      floatButton = existingButton
+      return
+    }
+
+    // Create button
+    floatButton = document.createElement('button')
+    floatButton.id = FLOAT_BTN_ID
+    floatButton.className = 'qwen-nav-float-btn'
+    floatButton.title = 'Open navigation menu'
+
+    // Add SVG icon
+    floatButton.innerHTML = SVG_ICON
+
+    // Add to body
+    document.body.appendChild(floatButton)
+
+    // Add click handler
+    floatButton.addEventListener('click', toggleMenu)
+
+    console.log('[Qwen Navigator] Float button created')
   }
 
   // ============================================
@@ -307,21 +366,21 @@
   function updateNavigationLinks() {
     const messages = getUserMessages()
     const listContainer = document.getElementById('qwen-nav-list')
-    const headerElement = document.querySelector('.qwen-nav-header')
+    const headerTitle = document.querySelector('.qwen-nav-header-title')
 
     if (!listContainer) {
       console.error('[Qwen Navigator] List container not found')
       return
     }
 
-    if (!headerElement) {
+    if (!headerTitle) {
       console.error('[Qwen Navigator] Menu header not found')
       return
     }
 
     // Update header with message count
     const messageCount = messages.length
-    headerElement.textContent = `Chat Navigation (${messageCount})`
+    headerTitle.textContent = `Chat Navigation (${messageCount})`
 
     // If no messages, show empty state
     if (messages.length === 0) {
@@ -347,7 +406,7 @@
     if (!linksHTML) {
       listContainer.innerHTML = '<div class="qwen-nav-empty">No messages</div>'
       // Update counter to 0, as there are no valid messages
-      headerElement.textContent = `Chat Navigation (0)`
+      headerTitle.textContent = `Chat Navigation (0)`
       return
     }
 
@@ -467,17 +526,22 @@
         console.log('[Qwen Navigator] Resetting stabilization')
         resetStabilization()
 
+        // Close menu
+        if (navigationMenu && navigationMenu.classList.contains('visible')) {
+          navigationMenu.classList.remove('visible')
+        }
+
         // Clear menu
         const listContainer = document.getElementById('qwen-nav-list')
-        const headerElement = document.querySelector('.qwen-nav-header')
+        const headerTitle = document.querySelector('.qwen-nav-header-title')
 
         if (listContainer) {
           listContainer.innerHTML = '<div class="qwen-nav-empty">Loading...</div>'
           console.log('[Qwen Navigator] Menu cleared')
         }
 
-        if (headerElement) {
-          headerElement.textContent = 'Chat Navigation (0)'
+        if (headerTitle) {
+          headerTitle.textContent = 'Chat Navigation (0)'
         }
 
         // Reinitialize extension with delay

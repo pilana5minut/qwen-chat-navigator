@@ -85,12 +85,120 @@ body.dark .qwen-nav-resizer::before {
   font-weight: 600;
   color: #615ced;
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 html.dark .qwen-nav-header,
 body.dark .qwen-nav-header {
   color: #8583f6;
   border-bottom-color: #ffffff14;
+}
+
+/* Toggle button in header (when menu is open) - simplified */
+.qwen-nav-toggle-btn {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.qwen-nav-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+html.dark .qwen-nav-toggle-btn:hover,
+body.dark .qwen-nav-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* SVG icon styling */
+.qwen-nav-toggle-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Light theme icon color */
+.qwen-nav-toggle-btn svg rect,
+.qwen-nav-toggle-btn svg line {
+  stroke: rgb(78, 78, 78);
+}
+
+/* Dark theme icon color */
+html.dark .qwen-nav-toggle-btn svg rect,
+html.dark .qwen-nav-toggle-btn svg line,
+body.dark .qwen-nav-toggle-btn svg rect,
+body.dark .qwen-nav-toggle-btn svg line {
+  stroke: rgb(236, 236, 236);
+}
+
+/* Header title */
+.qwen-nav-header-title {
+  flex: 1;
+}
+
+/* Floating toggle button (when menu is closed) - simplified */
+.qwen-nav-float-btn {
+  position: fixed;
+  top: 12px;
+  right: 100px;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: background 0.2s ease;
+}
+
+.qwen-nav-float-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+html.dark .qwen-nav-float-btn:hover,
+body.dark .qwen-nav-float-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* SVG icon in float button */
+.qwen-nav-float-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Light theme icon color for float button */
+.qwen-nav-float-btn svg rect,
+.qwen-nav-float-btn svg line {
+  stroke: rgb(78, 78, 78);
+}
+
+/* Dark theme icon color for float button */
+html.dark .qwen-nav-float-btn svg rect,
+html.dark .qwen-nav-float-btn svg line,
+body.dark .qwen-nav-float-btn svg rect,
+body.dark .qwen-nav-float-btn svg line {
+  stroke: rgb(236, 236, 236);
+}
+
+/* Hide float button when menu is open */
+#qwen-nav-menu.visible ~ .qwen-nav-float-btn {
+  display: none;
 }
 
 /* Links list container */

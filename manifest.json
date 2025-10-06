@@ -30,6 +30,16 @@
       "run_at": "document_end"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/right-side-menu.svg"
+      ],
+      "matches": [
+        "https://chat.qwen.ai/*"
+      ]
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
